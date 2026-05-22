@@ -1,0 +1,154 @@
+// ============================================================
+// E-Payment System — Database Schema (DBML)
+// PostgreSQL 16 via Supabase (managed, direct connection)
+// ============================================================
+
+// ---------- Enums ----------
+
+Enum account_status {
+  active
+  suspended
+  locked
+  pending
+}
+
+Enum transaction_status {
+  pending
+  completed
+  failed
+  rejected
+}
+
+// ============================================================
+// Tables
+// ============================================================
+
+// Core identity and account status.
+// Raw NID/BRC numbers are never stored — only SHA-256 hash.
+Table users {
+  user_id          UUID            [pk, default: `gen_random_uuid()`]
+  username         VARCHAR(64)     [unique, not null]
+  full_name        VARCHAR(255)    [not null]
+  nid_hash         VARCHAR(128)    [unique, not null]
+  email            VARCHAR(255)
+  account_status   account_status  [not null, default: 'active']
+  created_at       TIMESTAMPTZ     [not null, default: `now()`]
+  updated_at       TIMESTAMPTZ     [not null, default: `now()`]
+}
+
+// Financial balances and daily limits.
+// Separated from users so DB roles can restrict financial data
+// access independently from identity data.
+Table accounts {
+  account_id       UUID            [pk, default: `gen_random_uuid()`]
+  user_id          UUID            [unique, not null, ref: > users.user_id]
+  balance          NUMERIC(15, 2)  [not null, default: 0.00, note: '>= 0']
+  daily_limit      NUMERIC(15, 2)  [not null, default: 5000.00]
+  daily_used       NUMERIC(15, 2)  [not null, default: 0.00]
+  daily_reset_at   DATE            [not null, default: `CURRENT_DATE`]
+  currency         VARCHAR(3)      [not null, default: 'BDT']
+  created_at       TIMESTAMPTZ     [not null, default: `now()`]
+  updated_at       TIMESTAMPTZ     [not null, default: `now()`]
+}
+
+// Cryptographic credentials tied to a specific registered
+// device/browser session. In the web MVP, "device" refers to
+// the browser + machine combination identified at registration.
+Table device_credentials {
+  device_id              UUID            [pk, default: `gen_random_uuid()`]
+  user_id                UUID            [unique, not null, ref: > users.user_id]
+  browser_fingerprint    VARCHAR(128)    [not null, note: 'SHA-256(user_agent + screen_res + timezone + canvas_hash)']
+  k1_hash                VARCHAR(128)    [not null, note: 'SHA-256(K1); K1 never stored server-side in plaintext']
+  session_secret_hash    VARCHAR(128)    [not null, note: 'SHA-256(Bp_substitute): device-bound session secret']
+  activation_code_hash   VARCHAR(128)    [not null, note: 'consumed at registration; stored as hash for audit']
+  tls_client_cert_pem    TEXT
+  tls_cert_serial        VARCHAR(128)
+  tls_cert_expires_at    TIMESTAMPTZ
+  app_version            VARCHAR(32)
+  is_active              BOOLEAN         [not null, default: true]
+  registered_at          TIMESTAMPTZ     [not null, default: `now()`]
+  last_used_at           TIMESTAMPTZ
+}
+
+// Anti-replay state. After every successful transaction,
+// current_t and t_version are updated atomically with the
+// balance changes. A replayed message carries a stale
+// t_version and is rejected before any other processing.
+Table timestamp_keys {
+  ts_key_id        UUID            [pk, default: `gen_random_uuid()`]
+  user_id          UUID            [unique, not null, ref: > users.user_id]
+  current_t        VARCHAR(256)    [not null]
+  t_version        BIGINT          [not null, default: 1]
+  last_updated_at  TIMESTAMPTZ     [not null, default: `now()`]
+}
+
+// Immutable financial ledger. Records are never updated or
+// deleted — they are the ground truth of all value movements.
+// The status field is the only column that changes after
+// initial insert (pending -> completed or failed), and only
+// within the atomic DB transaction that also modifies balances.
+Table transactions {
+  transaction_id   UUID                [pk, default: `gen_random_uuid()`]
+  sender_id        UUID                [not null, ref: > users.user_id]
+  receiver_id      UUID                [not null, ref: > users.user_id]
+  amount           NUMERIC(15, 2)      [not null, note: '> 0']
+  currency         VARCHAR(3)          [not null, default: 'BDT']
+  status           transaction_status  [not null, default: 'pending']
+  failure_reason   TEXT
+  hmac_verified    BOOLEAN             [not null, default: false]
+  t_version_used   BIGINT              [not null]
+  initiated_at     TIMESTAMPTZ         [not null, default: `now()`]
+  completed_at     TIMESTAMPTZ
+  tls_session_id   VARCHAR(128)
+  ip_address       INET
+  device_id        UUID                [ref: > device_credentials.device_id]
+}
+
+// Append-only log of every security-relevant event.
+// Written to on every auth failure, HMAC mismatch, replay
+// detection, account status change, and suspicious pattern.
+Table audit_log {
+  log_id         UUID            [pk, default: `gen_random_uuid()`]
+  user_id        UUID            [ref: > users.user_id]
+  device_id      UUID            [ref: > device_credentials.device_id]
+  event_type     VARCHAR(64)     [not null]
+  event_detail   JSONB
+  ip_address     INET
+  tls_session_id VARCHAR(128)
+  occurred_at    TIMESTAMPTZ     [not null, default: `now()`]
+
+  Indexes {
+    user_id [type: btree]
+    event_type [type: btree]
+    occurred_at [type: btree, note: 'DESC']
+  }
+}
+
+// Tracks issued mTLS client certificates.
+// Not used in the web MVP (no client cert in a browser context)
+// but schema is included so the production upgrade path
+// requires no migration rework.
+Table tls_certificates {
+  cert_id           UUID            [pk, default: `gen_random_uuid()`]
+  device_id         UUID            [not null, ref: > device_credentials.device_id]
+  serial_number     VARCHAR(128)    [unique, not null]
+  issued_at         TIMESTAMPTZ     [not null, default: `now()`]
+  expires_at        TIMESTAMPTZ     [not null]
+  revoked           BOOLEAN         [not null, default: false]
+  revoked_at        TIMESTAMPTZ
+  revocation_reason VARCHAR(128)
+}
+
+// ============================================================
+// Relationship Summary
+// ============================================================
+
+Ref: users.user_id - accounts.user_id            // 1:1 — each user has one account
+Ref: users.user_id - device_credentials.user_id   // 1:1 — each user has one device credential
+Ref: users.user_id - timestamp_keys.user_id       // 1:1 — each user has one timestamp key chain
+Ref: users.user_id < transactions.sender_id       // 1:N — user sends many transactions
+Ref: users.user_id < transactions.receiver_id     // 1:N — user receives many transactions
+Ref: device_credentials.device_id < transactions.device_id  // 1:N — device initiates many transactions
+Ref: users.user_id < audit_log.user_id            // 1:N — user has many audit log entries
+Ref: device_credentials.device_id < audit_log.device_id    // 1:N — device has many audit log entries
+Ref: device_credentials.device_id < tls_certificates.device_id  // 1:N — device has many certificates
