@@ -1,0 +1,11 @@
+flask==3.1.0
+flask-sqlalchemy==3.1.1
+flask-migrate==4.0.7
+psycopg2-binary==2.9.10
+alembic==1.14.1
+python-dotenv==1.1.0
+cryptography==44.0.1
+pyjwt==2.10.1
+redis==5.2.1
+celery==5.4.0
+gunicorn==23.0.0

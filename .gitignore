@@ -1,0 +1,30 @@
+# Environment
+.env
+backend/.env
+*.env.local
+*.env.production
+
+# Secrets
+backend/link_SUPABASE.md
+backend/Prompt.md
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
