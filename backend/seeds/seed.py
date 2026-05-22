@@ -1,11 +1,3 @@
-"""Seed the database with test users for development/demo.
-
-Usage:
-    python seeds/seed.py
-
-Idempotent: skips users whose username already exists.
-"""
-
 import sys
 import os
 from decimal import Decimal
@@ -15,7 +7,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app import create_app
 from app.extensions import db
 from app.models.user import User
+from app.models.account import Account
 from app.services import auth_service
+from app.services.crypto_service import hash_sha256
 
 SEED_USERS = [
     {

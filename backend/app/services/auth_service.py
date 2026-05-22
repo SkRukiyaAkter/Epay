@@ -12,7 +12,13 @@ from app.models.user import User
 from app.models.account import Account
 from app.models.device_credential import DeviceCredential
 from app.models.timestamp_key import TimestampKey
-from app.services.crypto_service import derive_k1, derive_initial_t, hash_sha256
+from app.services.crypto_service import (
+    derive_k1,
+    derive_initial_t,
+    hash_sha256,
+    fernet_encrypt,
+    fernet_decrypt,
+)
 
 
 def _make_jwt(user_id: uuid.UUID, device_id: uuid.UUID) -> str:
@@ -45,13 +51,19 @@ def login_user(username: str, password_hash: str) -> dict | None:
 
     token = _make_jwt(user.user_id, device.device_id)
 
-    return {
+    result = {
         "session_token": token,
         "t_current": ts_key.current_t,
         "t_version": ts_key.t_version,
         "user_id": str(user.user_id),
         "device_id": str(device.device_id),
     }
+
+    if device.k2_encrypted and device.session_secret_encrypted:
+        result["k2_encrypted"] = device.k2_encrypted
+        result["session_secret_encrypted"] = device.session_secret_encrypted
+
+    return result
 
 
 def register_user(
@@ -73,6 +85,9 @@ def register_user(
     session_secret_hash = hash_sha256(session_secret)
     activation_code_hash = hash_sha256(activation_code)
     password_hashed = hash_sha256(password)
+
+    k2_encrypted = fernet_encrypt(password)
+    session_secret_encrypted = fernet_encrypt(session_secret)
 
     user = User(
         username=nid_number[:12],
@@ -106,6 +121,8 @@ def register_user(
         k1_hash=k1_hash,
         session_secret_hash=session_secret_hash,
         activation_code_hash=activation_code_hash,
+        k2_encrypted=k2_encrypted,
+        session_secret_encrypted=session_secret_encrypted,
         is_active=True,
         registered_at=now,
         last_used_at=now,

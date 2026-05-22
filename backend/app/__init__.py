@@ -25,7 +25,13 @@ def create_app(config_class=Config):
         )
 
     from app.routes.auth import auth_bp
+    from app.routes.transaction import transaction_bp
+    from app.routes.account import account_bp
+    from app.routes.device import device_bp
 
     app.register_blueprint(auth_bp)
+    app.register_blueprint(transaction_bp)
+    app.register_blueprint(account_bp)
+    app.register_blueprint(device_bp)
 
     return app

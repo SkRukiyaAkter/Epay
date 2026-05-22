@@ -8,13 +8,26 @@ from decimal import Decimal
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
+from cryptography.fernet import Fernet
 from flask import current_app
 
 
-def get_server_hmac_secret() -> bytes:
+def _get_server_hmac_secret() -> bytes:
     secret = current_app.config.get("SERVER_HMAC_SECRET", "dev-hmac-secret")
     return secret.encode() if isinstance(secret, str) else secret
+
+
+def _get_fernet() -> Fernet:
+    key = hashlib.sha256(current_app.config["SECRET_KEY"].encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(key))
+
+
+def fernet_encrypt(plaintext: str) -> str:
+    return _get_fernet().encrypt(plaintext.encode()).decode()
+
+
+def fernet_decrypt(ciphertext: str) -> str:
+    return _get_fernet().decrypt(ciphertext.encode()).decode()
 
 
 def derive_k1(activation_code: str, nid_number: str, browser_fingerprint: str) -> bytes:
@@ -50,7 +63,7 @@ def hmac_verify(k1: bytes, message: bytes, expected_f1_b64: str) -> bool:
 
 
 def derive_next_t(t_old: str, t_version_new: int, transaction_id: str) -> str:
-    server_secret = get_server_hmac_secret()
+    server_secret = _get_server_hmac_secret()
     msg = (
         t_old.encode()
         + str(t_version_new).encode()
@@ -60,7 +73,7 @@ def derive_next_t(t_old: str, t_version_new: int, transaction_id: str) -> str:
 
 
 def derive_initial_t(user_id: str) -> str:
-    server_secret = get_server_hmac_secret()
+    server_secret = _get_server_hmac_secret()
     msg = user_id.encode() + os.urandom(32)
     return stdlib_hmac.new(server_secret, msg, hashlib.sha256).hexdigest()
 

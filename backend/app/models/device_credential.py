@@ -19,6 +19,8 @@ class DeviceCredential(db.Model):
     k1_hash = db.Column(db.String(128), nullable=False)
     session_secret_hash = db.Column(db.String(128), nullable=False)
     activation_code_hash = db.Column(db.String(128), nullable=False)
+    k2_encrypted = db.Column(db.Text)
+    session_secret_encrypted = db.Column(db.Text)
     tls_client_cert_pem = db.Column(db.Text)
     tls_cert_serial = db.Column(db.String(128))
     tls_cert_expires_at = db.Column(db.DateTime(timezone=True))
