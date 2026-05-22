@@ -11,6 +11,6 @@ class Config:
         "postgresql://postgres:postgres@localhost:5432/epayment",
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    JWT_SECRET = os.getenv("JWT_SECRET", SECRET_KEY)
+    JWT_SECRET = os.getenv("JWT_SECRET", "dev-jwt-secret")
     SERVER_HMAC_SECRET = os.getenv("SERVER_HMAC_SECRET", "dev-hmac-secret")
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")

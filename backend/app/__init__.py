@@ -14,6 +14,18 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
 
     with app.app_context():
-        from app.models import user, account, device_credential, timestamp_key, transaction, audit_log, tls_certificate
+        from app.models import (
+            user,
+            account,
+            device_credential,
+            timestamp_key,
+            transaction,
+            audit_log,
+            tls_certificate,
+        )
+
+    from app.routes.auth import auth_bp
+
+    app.register_blueprint(auth_bp)
 
     return app

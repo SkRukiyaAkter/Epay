@@ -1,7 +1,11 @@
 import hashlib
+import uuid
 import os
 from decimal import Decimal
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+
+import jwt as pyjwt
+from flask import current_app
 
 from app.extensions import db
 from app.models.user import User
@@ -9,6 +13,45 @@ from app.models.account import Account
 from app.models.device_credential import DeviceCredential
 from app.models.timestamp_key import TimestampKey
 from app.services.crypto_service import derive_k1, derive_initial_t, hash_sha256
+
+
+def _make_jwt(user_id: uuid.UUID, device_id: uuid.UUID) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "user_id": str(user_id),
+        "device_id": str(device_id),
+        "jti": str(uuid.uuid4()),
+        "iat": now,
+        "exp": now + timedelta(minutes=15),
+    }
+    return pyjwt.encode(payload, current_app.config["JWT_SECRET"], algorithm="HS256")
+
+
+def login_user(username: str, password_hash: str) -> dict | None:
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return None
+
+    if user.password_hash != password_hash:
+        return None
+
+    device = DeviceCredential.query.filter_by(user_id=user.user_id).first()
+    if not device or not device.is_active:
+        return None
+
+    ts_key = TimestampKey.query.filter_by(user_id=user.user_id).first()
+    if not ts_key:
+        return None
+
+    token = _make_jwt(user.user_id, device.device_id)
+
+    return {
+        "session_token": token,
+        "t_current": ts_key.current_t,
+        "t_version": ts_key.t_version,
+        "user_id": str(user.user_id),
+        "device_id": str(device.device_id),
+    }
 
 
 def register_user(
@@ -29,13 +72,14 @@ def register_user(
     session_secret = os.urandom(32).hex()
     session_secret_hash = hash_sha256(session_secret)
     activation_code_hash = hash_sha256(activation_code)
-    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    password_hashed = hash_sha256(password)
 
     user = User(
         username=nid_number[:12],
         full_name=full_name,
         nid_hash=nid_hash,
         email=email,
+        password_hash=password_hashed,
         account_status="active",
         created_at=now,
         updated_at=now,
