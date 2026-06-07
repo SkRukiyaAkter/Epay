@@ -1,21 +1,40 @@
+import json
+import base64
+import os
+
 from flask import Blueprint, request, jsonify, g
 
 from app.middeware.auth_middleware import require_jwt
+from app.middeware.rate_limit import rate_limit
 from app.services import transaction_service
+from app.services.crypto_service import (
+    derive_k1,
+    derive_aes_key,
+    aes_gcm_decrypt,
+    hmac_verify,
+    derive_next_t,
+    fernet_decrypt,
+    hash_sha256,
+)
+from app.services.audit_service import log_event
 from app.models.transaction import Transaction
 from app.models.user import User
+from app.models.device_credential import DeviceCredential
+from app.models.timestamp_key import TimestampKey
+from app.extensions import db
 
 transaction_bp = Blueprint("transaction", __name__, url_prefix="/api/v1/transaction")
 
 
 @transaction_bp.route("/initiate", methods=["POST"])
 @require_jwt
+@rate_limit(max_requests=30, window_seconds=60)
 def initiate():
     data = request.get_json(force=True)
 
     encrypted_payload = data.get("encrypted_payload", "")
     nonce = data.get("nonce", "")
-    declared_t_version = data.get("t_version")
+    declared_t_version = data.get("declared_t_version")
     device_id = data.get("device_id", "")
 
     if not encrypted_payload or not nonce or declared_t_version is None:
