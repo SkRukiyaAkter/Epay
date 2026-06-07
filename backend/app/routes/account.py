@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, g
 
 from app.middeware.auth_middleware import require_jwt
+from app.extensions import blacklist_user_tokens
 from app.models.account import Account
 
 account_bp = Blueprint("account", __name__, url_prefix="/api/v1/account")
@@ -40,6 +41,9 @@ def suspend():
         device.is_active = False
 
     db.session.commit()
+
+    # Blacklist all active tokens for this user (15-minute window)
+    blacklist_user_tokens(str(user.user_id), ttl_seconds=900)
 
     from app.services.audit_service import log_event
     log_event("account_suspended", user_id=str(user.user_id))
