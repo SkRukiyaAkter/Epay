@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.env
+.venv/
+venv/
+*.egg-info/
+.eggs/
+dist/
+build/
+migrations/
+seeds/
+tests/
+.git/
+.gitignore
+*.md
+.DS_Store
