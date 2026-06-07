@@ -1,4 +1,4 @@
-import hashlib
+import bcrypt
 import uuid
 import os
 from decimal import Decimal
@@ -33,12 +33,15 @@ def _make_jwt(user_id: uuid.UUID, device_id: uuid.UUID) -> str:
     return pyjwt.encode(payload, current_app.config["JWT_SECRET"], algorithm="HS256")
 
 
-def login_user(username: str, password_hash: str) -> dict | None:
+def login_user(username: str, password: str) -> dict | None:
     user = User.query.filter_by(username=username).first()
     if not user:
         return None
 
-    if user.password_hash != password_hash:
+    try:
+        if not bcrypt.checkpw(password.encode(), user.password_hash.encode()):
+            return None
+    except (ValueError, AttributeError):
         return None
 
     device = DeviceCredential.query.filter_by(user_id=user.user_id).first()
@@ -50,6 +53,14 @@ def login_user(username: str, password_hash: str) -> dict | None:
         return None
 
     token = _make_jwt(user.user_id, device.device_id)
+    device.last_used_at = datetime.now(timezone.utc)
+    db.session.commit()
+
+    k2_raw = ""
+    session_secret_raw = ""
+    if device.k2_encrypted and device.session_secret_encrypted:
+        k2_raw = fernet_decrypt(device.k2_encrypted)
+        session_secret_raw = fernet_decrypt(device.session_secret_encrypted)
 
     result = {
         "session_token": token,
@@ -57,11 +68,51 @@ def login_user(username: str, password_hash: str) -> dict | None:
         "t_version": ts_key.t_version,
         "user_id": str(user.user_id),
         "device_id": str(device.device_id),
+        "k2_raw": k2_raw,
+        "session_secret_raw": session_secret_raw,
+        "activation_code_hash": device.activation_code_hash,
+        "nid_hash": user.nid_hash,
+        "browser_fingerprint": device.browser_fingerprint,
     }
 
+    return result
+
+
+def refresh_user(user_id: uuid.UUID, device_id: uuid.UUID) -> dict | None:
+    user = User.query.get(user_id)
+    if not user or user.account_status != "active":
+        return None
+
+    device = DeviceCredential.query.filter_by(user_id=user_id).first()
+    if not device or not device.is_active:
+        return None
+
+    ts_key = TimestampKey.query.filter_by(user_id=user_id).first()
+    if not ts_key:
+        return None
+
+    token = _make_jwt(user.user_id, device.device_id)
+    device.last_used_at = datetime.now(timezone.utc)
+    db.session.commit()
+
+    k2_raw = ""
+    session_secret_raw = ""
     if device.k2_encrypted and device.session_secret_encrypted:
-        result["k2_encrypted"] = device.k2_encrypted
-        result["session_secret_encrypted"] = device.session_secret_encrypted
+        k2_raw = fernet_decrypt(device.k2_encrypted)
+        session_secret_raw = fernet_decrypt(device.session_secret_encrypted)
+
+    result = {
+        "session_token": token,
+        "t_current": ts_key.current_t,
+        "t_version": ts_key.t_version,
+        "user_id": str(user.user_id),
+        "device_id": str(device.device_id),
+        "k2_raw": k2_raw,
+        "session_secret_raw": session_secret_raw,
+        "activation_code_hash": device.activation_code_hash,
+        "nid_hash": user.nid_hash,
+        "browser_fingerprint": device.browser_fingerprint,
+    }
 
     return result
 
@@ -84,7 +135,7 @@ def register_user(
     session_secret = os.urandom(32).hex()
     session_secret_hash = hash_sha256(session_secret)
     activation_code_hash = hash_sha256(activation_code)
-    password_hashed = hash_sha256(password)
+    password_hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     k2_encrypted = fernet_encrypt(password)
     session_secret_encrypted = fernet_encrypt(session_secret)
