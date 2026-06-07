@@ -74,7 +74,7 @@ def process(
 
     ts_key = TimestampKey.query.filter_by(
         user_id=sender_user_id
-    ).first()
+    ).with_for_update().first()
     if not ts_key:
         return _fail("account_suspended")
 
@@ -199,6 +199,19 @@ def process(
             "transaction_id": str(txn.transaction_id),
             "amount": str(amount),
             "receiver": receiver.username,
+        },
+    )
+
+    from app.routes.notification import create_notification
+    create_notification(
+        user_id=receiver.user_id,
+        type="transaction_received",
+        title="Money Received",
+        message=f"You received {amount} {m.get('currency', 'BDT')} from {sender.username}",
+        metadata={
+            "transaction_id": str(txn.transaction_id),
+            "amount": str(amount),
+            "sender": sender.username,
         },
     )
 
