@@ -1,7 +1,6 @@
 import hashlib
 import hmac as stdlib_hmac
 import os
-import json
 import base64
 from decimal import Decimal
 
@@ -80,36 +79,3 @@ def derive_initial_t(user_id: str) -> str:
 
 def hash_sha256(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
-
-
-def verify_payload(
-    encrypted_payload: str,
-    declared_t_version: int,
-    k2: bytes,
-    session_secret: bytes,
-    k1: bytes,
-    t_current: str,
-    sender_username: str,
-) -> dict | None:
-    aes_key = derive_aes_key(k2, session_secret, t_current, "placeholder-nonce")
-    aad = (sender_username + str(declared_t_version)).encode()
-    try:
-        plaintext = aes_gcm_decrypt(aes_key, encrypted_payload, aad)
-    except Exception:
-        return None
-
-    plain_str = plaintext.decode()
-    m_str, f1 = plain_str.rsplit("|", 1)
-    m = json.loads(m_str)
-
-    if not hmac_verify(k1, m_str.encode(), f1):
-        return None
-
-    return {
-        "sender_username": m["sender_username"],
-        "receiver_username": m["receiver_username"],
-        "amount": Decimal(str(m["amount"])),
-        "currency": m.get("currency", "BDT"),
-        "nonce": m["nonce"],
-        "timestamp": m["timestamp"],
-    }
