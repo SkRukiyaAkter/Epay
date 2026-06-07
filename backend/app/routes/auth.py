@@ -78,10 +78,22 @@ def login():
 
 
 @auth_bp.route("/logout", methods=["POST"])
+@require_jwt
 def logout():
+    jti = getattr(g, "token_jti", None)
+    exp = getattr(g, "token_exp", None)
+    if jti and exp:
+        from datetime import datetime, timezone
+        remaining = int(exp - datetime.now(timezone.utc).timestamp())
+        if remaining > 0:
+            blacklist_jti(jti, remaining)
     return jsonify({"logged_out": True}), 200
 
 
 @auth_bp.route("/refresh", methods=["POST"])
+@require_jwt
 def refresh():
-    return jsonify({"error": "not_implemented"}), 501
+    result = auth_service.refresh_user(g.current_user_id, g.current_device_id)
+    if not result:
+        return jsonify({"error": "refresh_failed"}), 401
+    return jsonify(result), 200
