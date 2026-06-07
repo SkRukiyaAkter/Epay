@@ -7,6 +7,7 @@ migrate = Migrate()
 
 
 def create_app(config_class=Config):
+    config_class.validate()
     app = Flask(__name__)
     app.config.from_object(config_class)
 
@@ -22,16 +23,23 @@ def create_app(config_class=Config):
             transaction,
             audit_log,
             tls_certificate,
+            notification,
         )
 
     from app.routes.auth import auth_bp
     from app.routes.transaction import transaction_bp
     from app.routes.account import account_bp
     from app.routes.device import device_bp
+    from app.routes.health import health_bp
+    from app.routes.notification import notification_bp
+    from app.routes.simulate import simulate_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(transaction_bp)
     app.register_blueprint(account_bp)
     app.register_blueprint(device_bp)
+    app.register_blueprint(health_bp)
+    app.register_blueprint(notification_bp)
+    app.register_blueprint(simulate_bp)
 
     return app
