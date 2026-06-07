@@ -91,6 +91,94 @@ def history():
     }), 200
 
 
+@transaction_bp.route("/initiate-bff", methods=["POST"])
+@require_jwt
+@rate_limit(max_requests=30, window_seconds=60)
+def initiate_bff():
+    """BFF-friendly endpoint: accepts raw transaction data, encrypts internally."""
+    data = request.get_json(force=True)
+
+    receiver_username = data.get("receiver_username", "").strip()
+    amount_str = data.get("amount", "")
+    currency = data.get("currency", "BDT")
+
+    if not receiver_username or not amount_str:
+        return jsonify({"error": "missing_fields"}), 400
+
+    sender = User.query.get(g.current_user_id)
+    device = DeviceCredential.query.filter_by(user_id=g.current_user_id).first()
+    ts_key = TimestampKey.query.filter_by(user_id=g.current_user_id).first()
+
+    if not device or not device.is_active or sender.account_status != "active":
+        return jsonify({"error": "account_suspended"}), 403
+
+    if not ts_key:
+        return jsonify({"error": "missing_timestamp_key"}), 500
+
+    # Decrypt k2 and session_secret
+    try:
+        k2_raw = fernet_decrypt(device.k2_encrypted)
+        session_secret_raw = fernet_decrypt(device.session_secret_encrypted)
+    except Exception:
+        log_event("bff_decryption_failed", user_id=str(g.current_user_id))
+        return jsonify({"error": "decryption_failed"}), 500
+
+    # Recompute K1
+    k1 = derive_k1(
+        device.activation_code_hash,
+        sender.nid_hash,
+        device.browser_fingerprint,
+    )
+
+    # Build message M
+    nonce = os.urandom(16).hex()
+    M = json.dumps({
+        "sender_username": sender.username,
+        "receiver_username": receiver_username,
+        "amount": amount_str,
+        "currency": currency,
+        "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+        "nonce": nonce,
+    })
+
+    # Compute HMAC F1
+    import hmac as stdlib_hmac
+    import hashlib
+    f1 = stdlib_hmac.new(k1, M.encode(), hashlib.sha256).digest()
+    f1_b64 = base64.b64encode(f1).decode()
+
+    # Derive AES key and encrypt
+    aes_key = derive_aes_key(
+        k2_raw.encode(),
+        session_secret_raw.encode(),
+        ts_key.current_t,
+        nonce,
+    )
+
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    iv = os.urandom(12)
+    plaintext = (M + "|" + f1_b64).encode()
+    aad = (sender.username + str(ts_key.t_version)).encode()
+    aesgcm = AESGCM(aes_key)
+    ciphertext = aesgcm.encrypt(iv, plaintext, aad)
+
+    encrypted_payload = base64.b64encode(iv + ciphertext).decode()
+
+    # Process via transaction_service
+    result = transaction_service.process(
+        encrypted_payload=encrypted_payload,
+        nonce=nonce,
+        declared_t_version=ts_key.t_version,
+        device_id=str(device.device_id),
+        sender_user_id=str(g.current_user_id),
+        ip_address=request.remote_addr,
+        tls_session_id=request.headers.get("X-TLS-Session-ID"),
+    )
+
+    status_code = 200 if result["status"] == "completed" else 400
+    return jsonify(result), status_code
+
+
 @transaction_bp.route("/<transaction_id>", methods=["GET"])
 @require_jwt
 def detail(transaction_id):
