@@ -4,6 +4,25 @@
 
 ---
 
+## Session 6 — Project Cleanup & Documentation
+
+### What Was Done
+
+| Task | Details |
+|---|---|
+| **README.md created** | Comprehensive root-level README with setup instructions, architecture docs, API reference |
+| **Missing bcrypt added** | Added `bcrypt==4.2.1` to `backend/requirements.txt` |
+| **.env files generated** | Backend `.env` and frontend `.env.local` created with cryptographically random secrets |
+| **Python venv setup** | Virtual environment created, all deps installed |
+| **npm install** | All frontend dependencies installed |
+| **Markdown files updated** | All docs reviewed and updated to reflect current codebase state |
+| **SECURITY_AUDIT.md corrected** | All CRITICAL and HIGH items now show correct status |
+
+### Credits
+- Security audit & hardening (Session 5): All 5 critical + 6 high findings resolved
+
+---
+
 ## Session 5 — Security Hardening + Landing Page + Notifications
 
 ### Security Fixes Applied (5 CRITICAL + 6 HIGH)
@@ -105,6 +124,8 @@
 Remaining medium items are architecturally complex (Gunicorn worker sharing, idempotency keys, per-transaction caps) — deferred to production hardening phase.
 
 ### How to Run
+
+See [README.md](./README.md) for full setup instructions.
 
 ```bash
 # Backend

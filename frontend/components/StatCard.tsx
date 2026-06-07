@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { DivideIcon as LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 interface Props { icon: LucideIcon; label: string; value: string; subValue?: string; variant?: "red"|"gold"|"rose"|"emerald"; }
 const v: Record<string,{bg:string;text:string;border:string}> = { red:{bg:"bg-red-500/5",text:"text-red-400",border:"border-red-500/10"}, gold:{bg:"bg-gold-500/5",text:"text-gold-400",border:"border-gold-500/10"}, rose:{bg:"bg-rose-500/5",text:"text-rose-400",border:"border-rose-500/10"}, emerald:{bg:"bg-emerald-500/5",text:"text-emerald-400",border:"border-emerald-500/10"} };

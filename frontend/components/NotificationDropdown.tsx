@@ -9,7 +9,7 @@ const IC: Record<string,typeof TrendingDown> = { transaction_received:TrendingDo
 const CL: Record<string,string> = { transaction_received:"text-emerald-400 bg-emerald-500/5 border-emerald-500/10", transaction_failed:"text-rose-400 bg-rose-500/5 border-rose-500/10", account_suspended:"text-amber-400 bg-amber-500/5 border-amber-500/10", daily_limit_warning:"text-amber-400 bg-amber-500/5 border-amber-500/10" };
 
 export default function NotificationDropdown() {
-  const [unread,setUnread]=useState(0); const [list,setList]=useState<AppNotification[]>([]); const [open,setOpen]=useState(false); const [ld,setLd]=useState(false); const ref=useRef<HTMLDivElement>(null); const poll=useRef<NodeJS.Timeout>();
+  const [unread,setUnread]=useState(0); const [list,setList]=useState<AppNotification[]>([]); const [open,setOpen]=useState(false); const [ld,setLd]=useState(false); const ref=useRef<HTMLDivElement>(null); const poll=useRef<ReturnType<typeof setInterval> | null>(null);
   const fetchUnread=async()=>{try{const r=await fetch("/api/notification/unread-count");if(r.ok)setUnread((await r.json()).unread_count||0)}catch{}};
   const fetchList=async()=>{setLd(true);try{const r=await fetch("/api/notification/list?limit=10");if(r.ok)setList((await r.json()).notifications||[])}catch{}finally{setLd(false)}};
   useEffect(()=>{fetchUnread();poll.current=setInterval(fetchUnread,30000);return()=>{if(poll.current)clearInterval(poll.current)}},[]);

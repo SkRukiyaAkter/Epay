@@ -5,6 +5,7 @@ from app.models.timestamp_key import TimestampKey
 from app.models.transaction import Transaction
 from app.models.audit_log import AuditLog
 from app.models.tls_certificate import TlsCertificate
+from app.models.notification import Notification
 
 __all__ = [
     "User",
@@ -14,4 +15,5 @@ __all__ = [
     "Transaction",
     "AuditLog",
     "TlsCertificate",
+    "Notification",
 ]
