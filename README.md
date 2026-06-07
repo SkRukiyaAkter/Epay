@@ -225,10 +225,10 @@ epay/
 
 | File | Description |
 |------|-------------|
-| [`epayment_project_overview.md`](./epayment_project_overview.md) | Full technical deep-dive (crypto, keys, threat model) |
-| [`PAPER_COMPLIANCE.md`](./PAPER_COMPLIANCE.md) | ICECTE 2022 framework compliance report |
-| [`SECURITY_AUDIT.md`](./SECURITY_AUDIT.md) | Security audit (5 critical + 6 high — all fixed) |
-| [`TESTING_PLAN.md`](./TESTING_PLAN.md) | Security testing strategy |
-| [`PROGRESS.md`](./PROGRESS.md) | Development progress log |
+| [`docs/epayment_project_overview.md`](./docs/epayment_project_overview.md) | Full technical deep-dive (crypto, keys, threat model) |
+| [`docs/PAPER_COMPLIANCE.md`](./docs/PAPER_COMPLIANCE.md) | ICECTE 2022 framework compliance report |
+| [`docs/SECURITY_AUDIT.md`](./docs/SECURITY_AUDIT.md) | Security audit (5 critical + 6 high — all fixed) |
+| [`docs/TESTING_PLAN.md`](./docs/TESTING_PLAN.md) | Security testing strategy |
+| [`docs/PROGRESS.md`](./docs/PROGRESS.md) | Development progress log |
 | [`supabase_schema.sql`](./supabase_schema.sql) | Raw PostgreSQL DDL |
 | [`schema.dbml`](./schema.dbml) | DBML schema definition |
